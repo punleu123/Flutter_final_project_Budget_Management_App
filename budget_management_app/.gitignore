@@ -1,0 +1,73 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# Documentation & Markdown files
+*.md
+doc/
+DOCUMENTATION_INDEX.md
+DELIVERY_SUMMARY.txt
+FILE_STRUCTURE_SUMMARY.md
+IMPLEMENTATION_CHECKLIST.md
+IMPLEMENTATION_COMPLETE.md
+IMPLEMENTATION_SUMMARY.md
+QUICK_REFERENCE.md
+DEVELOPER_CHECKLIST.md
+CORE_ARCHITECTURE.puml
+USAGE_GUIDE.md
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# IDE & Editor files
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Generated files
+*.g.dart
+*.config.dart
+
+# Coverage
+coverage/
+lcov.info
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
