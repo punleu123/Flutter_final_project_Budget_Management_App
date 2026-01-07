@@ -120,6 +120,37 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
         .toList();
   }
 
+  /// Calculate total income for specific month
+  double getTotalIncomeForMonth(int month, int year) {
+    return state.allTransactions
+        .where(
+          (t) =>
+              t.type == TransactionType.income &&
+              t.transactionDate.month == month &&
+              t.transactionDate.year == year,
+        )
+        .fold(0.0, (sum, t) => sum + t.amount);
+  }
+
+  /// Calculate total expense for specific month
+  double getTotalExpenseForMonth(int month, int year) {
+    return state.allTransactions
+        .where(
+          (t) =>
+              t.type == TransactionType.expense &&
+              t.transactionDate.month == month &&
+              t.transactionDate.year == year,
+        )
+        .fold(0.0, (sum, t) => sum + t.amount);
+  }
+
+  /// Calculate balance for specific month
+  double getBalanceForMonth(int month, int year) {
+    final income = getTotalIncomeForMonth(month, year);
+    final expense = getTotalExpenseForMonth(month, year);
+    return income - expense;
+  }
+
   /// Calculate total income
   double get totalIncome {
     return state.monthlyTransactions
@@ -245,3 +276,63 @@ final monthlyExpenseTotalProvider = Provider.family<double, (int, int)>((
   final year = param.$2;
   return ref.watch(budgetProvider.notifier).getMonthlyExpenseTotal(month, year);
 });
+
+/// Provider for monthly income (real-time with month parameter)
+final monthlyIncomeTotalProvider = Provider.family<double, (int, int)>((
+  ref,
+  param,
+) {
+  final month = param.$1;
+  final year = param.$2;
+  return ref.watch(budgetProvider.notifier).getTotalIncomeForMonth(month, year);
+});
+
+/// Provider for monthly expense (real-time with month parameter)
+final monthlyExpenseProvider = Provider.family<double, (int, int)>((
+  ref,
+  param,
+) {
+  final month = param.$1;
+  final year = param.$2;
+  return ref
+      .watch(budgetProvider.notifier)
+      .getTotalExpenseForMonth(month, year);
+});
+
+/// Provider for monthly balance (real-time with month parameter)
+final monthlyBalanceProvider = Provider.family<double, (int, int)>((
+  ref,
+  param,
+) {
+  final month = param.$1;
+  final year = param.$2;
+  return ref.watch(budgetProvider.notifier).getBalanceForMonth(month, year);
+});
+
+/// Provider for category spending (real-time with month parameter)
+final categorySpendingProvider = Provider.family<double, (String, int, int)>((
+  ref,
+  param,
+) {
+  final categoryId = param.$1;
+  final month = param.$2;
+  final year = param.$3;
+  return ref
+      .watch(budgetProvider.notifier)
+      .getMonthlyTotalForCategory(categoryId, month, year);
+});
+
+/// Provider for transactions filtered by month (real-time)
+final monthTransactionsProvider =
+    Provider.family<List<TransactionModel>, (int, int)>((ref, param) {
+      final month = param.$1;
+      final year = param.$2;
+      final allTransactions = ref.watch(budgetProvider).allTransactions;
+      return allTransactions
+          .where(
+            (t) =>
+                t.transactionDate.month == month &&
+                t.transactionDate.year == year,
+          )
+          .toList();
+    });

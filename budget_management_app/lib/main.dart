@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/hive_init.dart';
+import 'core/mock_data_generator.dart';
 import 'screens/home_screen.dart';
 import 'screens/add_transaction_screen.dart';
 import 'screens/edit_category_budget_screen.dart';
@@ -8,6 +9,10 @@ import 'screens/edit_category_budget_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await HiveInit.initialize();
+
+  // Generate mock data for testing (debug mode only)
+  await MockDataGenerator.generateTestData();
+
   runApp(const ProviderScope(child: MyApp()));
 }
 

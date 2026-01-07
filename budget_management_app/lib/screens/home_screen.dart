@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/currency_formatter.dart';
 import '../providers/settings_provider.dart';
 import '../providers/budget_provider.dart';
-import '../models/transaction_type.dart';
+import '../providers/category_budget_provider.dart';
 import 'edit_category_budget_screen.dart';
 import 'transaction_screen.dart';
 
@@ -58,29 +58,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final currency = ref.watch(settingsProvider).currency;
-    final transactions = ref.watch(budgetProvider).monthlyTransactions;
 
-    // Calculate totals for selected month
-    final monthTransactions =
-        transactions
-            .where(
-              (t) =>
-                  t.transactionDate.month == _selectedMonth.month &&
-                  t.transactionDate.year == _selectedMonth.year,
-            )
-            .toList();
+    // Watch the entire budget provider to get real-time updates
+    ref.watch(budgetProvider);
 
-    double totalIncome = 0;
-    double totalExpense = 0;
-
-    for (var t in monthTransactions) {
-      if (t.type == TransactionType.income) {
-        totalIncome += t.amount;
-      } else {
-        totalExpense += t.amount;
-      }
-    }
-
+    // Use reactive providers for real-time month calculations
+    final totalIncome = ref.watch(
+      monthlyIncomeTotalProvider((_selectedMonth.month, _selectedMonth.year)),
+    );
+    final totalExpense = ref.watch(
+      monthlyExpenseProvider((_selectedMonth.month, _selectedMonth.year)),
+    );
     final balance = totalIncome - totalExpense;
 
     return Scaffold(
@@ -273,26 +261,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children:
           categories
               .map(
-                (cat) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _buildCategoryBudgetSlider(
-                    categoryName: cat['name']!,
-                    categoryIcon: cat['icon']!,
-                    spent: 250.0,
-                    target: 500.0,
-                    currency: currency,
-                    onEditPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder:
-                              (context) => const EditCategoryBudgetScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                (cat) => _buildCategorySliderWithWatcher(
+                  context,
+                  categoryId: cat['id']!,
+                  categoryName: cat['name']!,
+                  categoryIcon: cat['icon']!,
+                  currency: currency,
                 ),
               )
               .toList(),
+    );
+  }
+
+  Widget _buildCategorySliderWithWatcher(
+    BuildContext context, {
+    required String categoryId,
+    required String categoryName,
+    required String categoryIcon,
+    required String currency,
+  }) {
+    return Consumer(
+      builder: (context, ref, child) {
+        // Watch real-time spending data for this category
+        final spent = ref.watch(
+          categorySpendingProvider((
+            categoryId,
+            _selectedMonth.month,
+            _selectedMonth.year,
+          )),
+        );
+
+        // Watch budget target for this category
+        final categoryBudgetNotifier = ref.watch(
+          categoryBudgetProvider.notifier,
+        );
+        final target = categoryBudgetNotifier.getTarget(
+          categoryId,
+          _selectedMonth.month,
+          _selectedMonth.year,
+        );
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _buildCategoryBudgetSlider(
+            categoryName: categoryName,
+            categoryIcon: categoryIcon,
+            spent: spent,
+            target: target,
+            currency: currency,
+            onEditPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const EditCategoryBudgetScreen(),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -304,8 +330,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required String currency,
     required VoidCallback onEditPressed,
   }) {
-    final percentage = spent / target;
-    final isOverBudget = percentage > 1.0;
+    // Handle division by zero: if no target set, show 0% progress
+    final percentage = target > 0 ? (spent / target).clamp(0.0, 1.0) : 0.0;
+    final isOverBudget = target > 0 && spent > target;
 
     return Container(
       decoration: BoxDecoration(
