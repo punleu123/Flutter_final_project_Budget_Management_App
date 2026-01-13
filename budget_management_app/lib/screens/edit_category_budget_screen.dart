@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/settings_provider.dart';
+import '../providers/category_budget_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/budget_provider.dart';
+import '../core/currency_formatter.dart';
 
 /// Screen for editing category budget targets
 class EditCategoryBudgetScreen extends ConsumerStatefulWidget {
-  const EditCategoryBudgetScreen({Key? key}) : super(key: key);
+  final String? selectedCategoryId;
+
+  const EditCategoryBudgetScreen({Key? key, this.selectedCategoryId})
+    : super(key: key);
 
   @override
   ConsumerState<EditCategoryBudgetScreen> createState() =>
@@ -14,7 +21,7 @@ class EditCategoryBudgetScreen extends ConsumerStatefulWidget {
 class _EditCategoryBudgetScreenState
     extends ConsumerState<EditCategoryBudgetScreen> {
   late TextEditingController _budgetController;
-  late String _selectedCategory;
+  late String _selectedCategoryId;
   late bool _applyToAllMonths;
   bool _isLoading = false;
 
@@ -22,7 +29,7 @@ class _EditCategoryBudgetScreenState
   void initState() {
     super.initState();
     _budgetController = TextEditingController();
-    _selectedCategory = '1';
+    _selectedCategoryId = widget.selectedCategoryId ?? '';
     _applyToAllMonths = true;
   }
 
@@ -33,6 +40,13 @@ class _EditCategoryBudgetScreenState
   }
 
   void _saveBudget() async {
+    if (_selectedCategoryId.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a category')));
+      return;
+    }
+
     if (_budgetController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a budget amount')),
@@ -43,16 +57,32 @@ class _EditCategoryBudgetScreenState
     setState(() => _isLoading = true);
 
     try {
-      // final budget = double.parse(_budgetController.text);
+      final budget = double.parse(_budgetController.text);
 
-      // In a real app, you would call:
-      // if (_applyToAllMonths) {
-      //   ref.read(categoryBudgetProvider.notifier)
-      //       .setTemplateBudget(_selectedCategory, budget);
-      // } else {
-      //   ref.read(categoryBudgetProvider.notifier)
-      //       .setMonthlyOverride(_selectedCategory, DateTime.now(), budget);
-      // }
+      if (budget <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Budget amount must be greater than 0')),
+        );
+        return;
+      }
+
+      if (_applyToAllMonths) {
+        // Update template budget
+        await ref
+            .read(categoryBudgetProvider.notifier)
+            .setTemplateBudget(_selectedCategoryId, budget);
+      } else {
+        // Update monthly override for current month
+        final now = DateTime.now();
+        await ref
+            .read(categoryBudgetProvider.notifier)
+            .setMonthlyOverride(
+              _selectedCategoryId,
+              now.month,
+              now.year,
+              budget,
+            );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -68,6 +98,10 @@ class _EditCategoryBudgetScreenState
           }
         });
       }
+    } on FormatException {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid number')),
+      );
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -84,17 +118,58 @@ class _EditCategoryBudgetScreenState
     final currency = ref.watch(settingsProvider).currency;
     final currencyPrefix = currency == 'USD' ? '\$ ' : '៛ ';
 
-    final categories = [
-      {'id': '1', 'name': 'Food & Dining'},
-      {'id': '2', 'name': 'Transportation'},
-      {'id': '3', 'name': 'Entertainment'},
-      {'id': '4', 'name': 'Shopping'},
-      {'id': '5', 'name': 'Utilities'},
-      {'id': '6', 'name': 'Healthcare'},
-    ];
+    // Watch all categories from the provider
+    final categoriesState = ref.watch(categoryProvider);
+
+    // Set first category as default if not already selected
+    if (_selectedCategoryId.isEmpty && categoriesState.categories.isNotEmpty) {
+      _selectedCategoryId = categoriesState.categories.first.id;
+    }
+
+    // Return early if no categories exist
+    if (categoriesState.categories.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Edit Budget Target'), elevation: 0),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.category_outlined, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('No categories available'),
+              const SizedBox(height: 8),
+              const Text(
+                'Please create a category first',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Get current budget and spending for selected category
+    final selectedCategory = categoriesState.categories.firstWhere(
+      (c) => c.id == _selectedCategoryId,
+      orElse: () => categoriesState.categories.first,
+    );
+
+    final now = DateTime.now();
+    final currentBudget = ref
+        .read(categoryBudgetProvider.notifier)
+        .getTarget(_selectedCategoryId, now.month, now.year);
+
+    final spent = ref.watch(
+      categorySpendingProvider((_selectedCategoryId, now.month, now.year)),
+    );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Budget'), elevation: 0),
+      appBar: AppBar(title: const Text('Edit Budget Target'), elevation: 0),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -113,24 +188,34 @@ class _EditCategoryBudgetScreenState
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 12),
-                      DropdownButton<String>(
-                        value: _selectedCategory,
-                        isExpanded: true,
-                        items:
-                            categories
-                                .map(
-                                  (category) => DropdownMenuItem(
-                                    value: category['id'] as String,
-                                    child: Text(category['name'] as String),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCategory = value ?? '1';
-                          });
-                        },
-                      ),
+                      categoriesState.categories.isEmpty
+                          ? Center(
+                            child: Text(
+                              'No categories found. Create one first.',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          )
+                          : DropdownButton<String>(
+                            value: _selectedCategoryId,
+                            isExpanded: true,
+                            items:
+                                categoriesState.categories
+                                    .map(
+                                      (category) => DropdownMenuItem(
+                                        value: category.id,
+                                        child: Text(category.name),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedCategoryId = value;
+                                  _budgetController.clear();
+                                });
+                              }
+                            },
+                          ),
                     ],
                   ),
                 ),
@@ -255,10 +340,25 @@ class _EditCategoryBudgetScreenState
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 12),
-                      _buildInfoRow('Category:', 'Food & Dining'),
-                      _buildInfoRow('Current Budget:', '\$500.00'),
-                      _buildInfoRow('Spent This Month:', '\$250.00'),
-                      _buildInfoRow('Remaining:', '\$250.00'),
+                      _buildInfoRow('Category:', selectedCategory.name),
+                      _buildInfoRow(
+                        'Current Budget:',
+                        CurrencyFormatter.format(
+                          currentBudget,
+                          currency: currency,
+                        ),
+                      ),
+                      _buildInfoRow(
+                        'Spent This Month:',
+                        CurrencyFormatter.format(spent, currency: currency),
+                      ),
+                      _buildInfoRow(
+                        'Remaining:',
+                        CurrencyFormatter.format(
+                          (currentBudget - spent).clamp(0, double.infinity),
+                          currency: currency,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -269,7 +369,10 @@ class _EditCategoryBudgetScreenState
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _saveBudget,
+                  onPressed:
+                      _isLoading || categoriesState.categories.isEmpty
+                          ? null
+                          : _saveBudget,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: Colors.blue,

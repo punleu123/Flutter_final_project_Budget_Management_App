@@ -1,87 +1,23 @@
 import 'package:flutter/material.dart';
-
-/// Represents a category for selection
-class CategoryItem {
-  final String id;
-  final String name;
-  final String icon;
-  final Color color;
-
-  const CategoryItem({
-    required this.id,
-    required this.name,
-    required this.icon,
-    required this.color,
-  });
-}
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/category_provider.dart';
 
 /// Screen for selecting a category
 /// Returns selected category ID when user taps on a category
-class CategorySelectionScreen extends StatefulWidget {
+class CategorySelectionScreen extends ConsumerStatefulWidget {
   final String? initialSelectedId;
 
   const CategorySelectionScreen({Key? key, this.initialSelectedId})
     : super(key: key);
 
   @override
-  State<CategorySelectionScreen> createState() =>
+  ConsumerState<CategorySelectionScreen> createState() =>
       _CategorySelectionScreenState();
 }
 
-class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
+class _CategorySelectionScreenState
+    extends ConsumerState<CategorySelectionScreen> {
   late String? _selectedCategoryId;
-
-  // List of available categories
-  static final List<CategoryItem> categories = [
-    const CategoryItem(
-      id: 'food',
-      name: 'Food & Dining',
-      icon: '🍔',
-      color: Color(0xFFFFB84D),
-    ),
-    const CategoryItem(
-      id: 'transport',
-      name: 'Transportation',
-      icon: '🚗',
-      color: Color(0xFF4DB8FF),
-    ),
-    const CategoryItem(
-      id: 'entertainment',
-      name: 'Entertainment',
-      icon: '🎬',
-      color: Color(0xFFFF99CC),
-    ),
-    const CategoryItem(
-      id: 'shopping',
-      name: 'Shopping',
-      icon: '🛍️',
-      color: Color(0xFFCC99FF),
-    ),
-    const CategoryItem(
-      id: 'utilities',
-      name: 'Utilities',
-      icon: '💡',
-      color: Color(0xFFFFCC99),
-    ),
-    const CategoryItem(
-      id: 'healthcare',
-      name: 'Healthcare',
-      icon: '🏥',
-      color: Color(0xFF99FFCC),
-    ),
-    const CategoryItem(
-      id: 'salary',
-      name: 'Salary',
-      icon: '💰',
-      color: Color(0xFF99CC99),
-    ),
-    const CategoryItem(
-      id: 'bonus',
-      name: 'Bonus',
-      icon: '🎁',
-      color: Color(0xFFFFCC99),
-    ),
-  ];
 
   @override
   void initState() {
@@ -96,6 +32,39 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Load categories from provider
+    final categoriesState = ref.watch(categoryProvider);
+    final categories = categoriesState.categories;
+
+    // Show empty state if no categories
+    if (categories.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Select Category'),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.category_outlined, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('No categories available'),
+              const SizedBox(height: 8),
+              const Text(
+                'Please create a category first',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Select Category'),
@@ -111,6 +80,9 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
         itemBuilder: (context, index) {
           final category = categories[index];
           final isSelected = _selectedCategoryId == category.id;
+
+          // Parse color from hex string
+          final color = Color(int.parse('FF${category.color}', radix: 16));
 
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -135,7 +107,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                           width: 60,
                           height: 60,
                           decoration: BoxDecoration(
-                            color: category.color.withOpacity(0.2),
+                            color: color.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Center(
@@ -149,35 +121,23 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
 
                         // Category Name
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                category.name,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Tap to select',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: Colors.grey),
-                              ),
-                            ],
+                          child: Text(
+                            category.name,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight:
+                                  isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                            ),
                           ),
                         ),
 
                         // Selection Indicator
                         if (isSelected)
-                          Icon(
+                          const Icon(
                             Icons.check_circle,
-                            color: Colors.blue[600],
-                            size: 28,
-                          )
-                        else
-                          Icon(
-                            Icons.radio_button_unchecked,
-                            color: Colors.grey[400],
+                            color: Colors.blue,
                             size: 28,
                           ),
                       ],

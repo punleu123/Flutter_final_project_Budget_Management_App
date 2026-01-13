@@ -4,6 +4,7 @@ import '../core/currency_formatter.dart';
 import '../providers/settings_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/category_budget_provider.dart';
+import '../providers/category_provider.dart';
 import 'edit_category_budget_screen.dart';
 import 'transaction_screen.dart';
 
@@ -248,24 +249,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildCategoryBudgetSliders(BuildContext context, String currency) {
-    final categories = [
-      {'id': 'food', 'name': 'Food & Dining', 'icon': '🍔'},
-      {'id': 'transport', 'name': 'Transportation', 'icon': '🚗'},
-      {'id': 'entertainment', 'name': 'Entertainment', 'icon': '🎬'},
-      {'id': 'shopping', 'name': 'Shopping', 'icon': '🛍️'},
-      {'id': 'utilities', 'name': 'Utilities', 'icon': '💡'},
-      {'id': 'healthcare', 'name': 'Healthcare', 'icon': '🏥'},
-    ];
+    // Watch all categories from provider
+    final categoriesState = ref.watch(categoryProvider);
+
+    if (categoriesState.categories.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.folder_open, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No categories yet',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: () {
+                // Navigate to category creation
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const EditCategoryBudgetScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Create Category'),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       children:
-          categories
+          categoriesState.categories
               .map(
-                (cat) => _buildCategorySliderWithWatcher(
+                (category) => _buildCategorySliderWithWatcher(
                   context,
-                  categoryId: cat['id']!,
-                  categoryName: cat['name']!,
-                  categoryIcon: cat['icon']!,
+                  categoryId: category.id,
+                  categoryName: category.name,
                   currency: currency,
                 ),
               )
@@ -277,7 +302,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     BuildContext context, {
     required String categoryId,
     required String categoryName,
-    required String categoryIcon,
     required String currency,
   }) {
     return Consumer(
@@ -305,14 +329,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: const EdgeInsets.only(bottom: 16),
           child: _buildCategoryBudgetSlider(
             categoryName: categoryName,
-            categoryIcon: categoryIcon,
             spent: spent,
             target: target,
             currency: currency,
             onEditPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => const EditCategoryBudgetScreen(),
+                  builder:
+                      (context) => EditCategoryBudgetScreen(
+                        selectedCategoryId: categoryId,
+                      ),
                 ),
               );
             },
@@ -324,7 +350,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildCategoryBudgetSlider({
     required String categoryName,
-    required String categoryIcon,
     required double spent,
     required double target,
     required String currency,
@@ -346,32 +371,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Text(categoryIcon, style: const TextStyle(fontSize: 20)),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        categoryName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      categoryName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
                       ),
-                      Text(
-                        '${CurrencyFormatter.format(spent, currency: currency)} / ${CurrencyFormatter.format(target, currency: currency)}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${CurrencyFormatter.format(spent, currency: currency)} / ${CurrencyFormatter.format(target, currency: currency)}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.edit, size: 20, color: Colors.blue),
                 onPressed: onEditPressed,
                 padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
           ),
@@ -383,7 +406,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               minHeight: 8,
               backgroundColor: Colors.grey[300],
               valueColor: AlwaysStoppedAnimation<Color>(
-                isOverBudget ? Colors.red : Colors.green,
+                isOverBudget
+                    ? Colors.red
+                    : (percentage > 0.8 ? Colors.orange : Colors.green),
               ),
             ),
           ),

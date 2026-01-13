@@ -28,17 +28,123 @@ class TransactionScreen extends ConsumerStatefulWidget {
 
 class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   late String _selectedFilter;
+  late DateTime _selectedWeekStart; // Track the start of selected week
+  late DateTime _selectedDay; // Track the selected day for daily filter
 
   @override
   void initState() {
     super.initState();
-    _selectedFilter = 'All';
+    _selectedFilter = 'Monthly'; // Default to Monthly filter
+    _selectedWeekStart = _getWeekStart(widget.selectedMonth);
+    _selectedDay = DateTime(
+      widget.selectedMonth.year,
+      widget.selectedMonth.month,
+      widget.selectedMonth.day,
+    );
+  }
+
+  @override
+  void didUpdateWidget(TransactionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update internal state when parent month changes
+    if (oldWidget.selectedMonth != widget.selectedMonth) {
+      setState(() {
+        // Update week and day to match the new selected month
+        _selectedWeekStart = _getWeekStart(widget.selectedMonth);
+        _selectedDay = DateTime(
+          widget.selectedMonth.year,
+          widget.selectedMonth.month,
+          1, // First day of the month
+        );
+      });
+    }
+  }
+
+  /// Get the Monday of the week containing the given date
+  DateTime _getWeekStart(DateTime date) {
+    final weekDay = date.weekday;
+    final daysToSubtract = weekDay - 1; // Monday is 1
+    return DateTime(date.year, date.month, date.day - daysToSubtract);
+  }
+
+  /// Get the Sunday of the week containing the given date
+  DateTime _getWeekEnd(DateTime date) {
+    return _getWeekStart(date).add(const Duration(days: 6));
+  }
+
+  void _previousWeek() {
+    setState(() {
+      _selectedWeekStart = _selectedWeekStart.subtract(const Duration(days: 7));
+    });
+  }
+
+  void _nextWeek() {
+    setState(() {
+      _selectedWeekStart = _selectedWeekStart.add(const Duration(days: 7));
+    });
+  }
+
+  String _getWeekRange() {
+    final weekEnd = _getWeekEnd(_selectedWeekStart);
+    final monthsMap = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    final startMonth = monthsMap[_selectedWeekStart.month - 1];
+    final endMonth = monthsMap[weekEnd.month - 1];
+
+    if (_selectedWeekStart.month == weekEnd.month) {
+      return '${_selectedWeekStart.day} - ${weekEnd.day} $startMonth';
+    } else {
+      return '${_selectedWeekStart.day} $startMonth - ${weekEnd.day} $endMonth';
+    }
+  }
+
+  void _previousDay() {
+    setState(() {
+      _selectedDay = _selectedDay.subtract(const Duration(days: 1));
+    });
+  }
+
+  void _nextDay() {
+    setState(() {
+      _selectedDay = _selectedDay.add(const Duration(days: 1));
+    });
+  }
+
+  String _getDayFormatted() {
+    final monthsMap = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final daysMap = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    return '${daysMap[_selectedDay.weekday - 1]} ${_selectedDay.day} ${monthsMap[_selectedDay.month - 1]}';
   }
 
   List<dynamic> _filterTransactions(List<dynamic> transactions) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final weekAgo = today.subtract(const Duration(days: 7));
+    final weekEnd = _getWeekEnd(_selectedWeekStart);
 
     switch (_selectedFilter) {
       case 'Daily':
@@ -50,7 +156,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                     t.transactionDate.month,
                     t.transactionDate.day,
                   ) ==
-                  today,
+                  _selectedDay,
             )
             .toList();
 
@@ -58,9 +164,11 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
         return transactions
             .where(
               (t) =>
-                  t.transactionDate.isAfter(weekAgo) &&
+                  t.transactionDate.isAfter(
+                    _selectedWeekStart.subtract(const Duration(seconds: 1)),
+                  ) &&
                   t.transactionDate.isBefore(
-                    today.add(const Duration(days: 1)),
+                    weekEnd.add(const Duration(days: 1)),
                   ),
             )
             .toList();
@@ -108,15 +216,17 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(Icons.arrow_back, color: Colors.blue),
                 onPressed: widget.onPreviousMonth,
               ),
               Text(
                 widget.monthYear,
-                style: Theme.of(context).textTheme.titleLarge,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               IconButton(
-                icon: const Icon(Icons.arrow_forward),
+                icon: const Icon(Icons.arrow_forward, color: Colors.blue),
                 onPressed: widget.onNextMonth,
               ),
             ],
@@ -179,6 +289,77 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                     )
                     .toList(),
           ),
+          const SizedBox(height: 16),
+
+          // Day Navigation (only show when Daily filter is selected)
+          if (_selectedFilter == 'Daily')
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.blue),
+                  onPressed: _previousDay,
+                ),
+                Text(
+                  _getDayFormatted(),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_forward, color: Colors.blue),
+                  onPressed: _nextDay,
+                ),
+              ],
+            ),
+
+          // Week Navigation (only show when Weekly filter is selected)
+          if (_selectedFilter == 'Weekly')
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.blue),
+                  onPressed: _previousWeek,
+                ),
+                Text(
+                  _getWeekRange(),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_forward, color: Colors.blue),
+                  onPressed: _nextWeek,
+                ),
+              ],
+            ),
+
+          // Month Navigation (synchronized with HomeScreen)
+          if (_selectedFilter == 'Monthly')
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Showing ${widget.monthYear} transactions',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.blue[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           const SizedBox(height: 24),
 
           // Transactions List
@@ -190,12 +371,16 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
+                onPressed: () async {
+                  await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => const AddTransactionScreen(),
                     ),
                   );
+                  // Refresh the screen after returning
+                  if (mounted) {
+                    setState(() {});
+                  }
                 },
                 icon: const Icon(Icons.add),
                 label: const Text('Add'),

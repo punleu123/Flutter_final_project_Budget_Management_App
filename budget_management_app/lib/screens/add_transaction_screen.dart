@@ -4,6 +4,7 @@ import '../models/transaction_model.dart';
 import '../models/transaction_type.dart';
 import '../providers/budget_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/category_provider.dart';
 import 'category_selection_screen.dart';
 
 /// Screen for adding new transactions
@@ -73,17 +74,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   }
 
   String _getCategoryName(String categoryId) {
-    final categoryMap = {
-      'food': 'Food & Dining',
-      'transport': 'Transportation',
-      'entertainment': 'Entertainment',
-      'shopping': 'Shopping',
-      'utilities': 'Utilities',
-      'healthcare': 'Healthcare',
-      'salary': 'Salary',
-      'bonus': 'Bonus',
-    };
-    return categoryMap[categoryId] ?? 'Select Category';
+    // Get category name from provider
+    final category = ref
+        .read(categoryProvider.notifier)
+        .getCategoryById(categoryId);
+    return category?.name ?? 'Select Category';
   }
 
   void _addTransaction() async {

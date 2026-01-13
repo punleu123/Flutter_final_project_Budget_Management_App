@@ -11,7 +11,12 @@ void main() async {
   await HiveInit.initialize();
 
   // Generate mock data for testing (debug mode only)
-  await MockDataGenerator.generateTestData();
+  // Wrapped in try-catch to prevent crashes if data generation fails
+  try {
+    await MockDataGenerator.generateTestData();
+  } catch (e) {
+    debugPrint('⚠️ Error generating mock data: $e');
+  }
 
   runApp(const ProviderScope(child: MyApp()));
 }
